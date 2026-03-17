@@ -1,15 +1,16 @@
-import { useEffect, useRef } from 'react';
-import { useGameStore } from '../store/gameStore.js';
-import { playerAttack } from '../systems/combat.js';
-import { play } from '../systems/sound.js';
+import { useEffect, useRef } from "react";
+import { useGameStore } from "../store/gameStore.js";
+import { playerAttack, castSpell } from "../systems/combat.js";
+import { play } from "../systems/sound.js";
 
 const MOVE_COOLDOWN = 160; // ms between grid steps
 
 export function useInput(enabled) {
-  const movePlayer  = useGameStore(s => s.movePlayer);
-  const usePotion   = useGameStore(s => s.usePotion);
-  const lastMove    = useRef(0);
-  const held        = useRef({});
+  const movePlayer = useGameStore((s) => s.movePlayer);
+  const usePotion = useGameStore((s) => s.usePotion);
+  const togglePaladinMode = useGameStore((s) => s.togglePaladinMode);
+  const lastMove = useRef(0);
+  const held = useRef({});
 
   useEffect(() => {
     if (!enabled) return;
@@ -17,16 +18,28 @@ export function useInput(enabled) {
     const onDown = (e) => {
       held.current[e.code] = true;
 
-      // Attack
-      if (e.code === 'Space' || e.code === 'KeyZ') {
+      // Melee / ranged attack
+      if (e.code === "Space") {
         e.preventDefault();
         playerAttack();
         return;
       }
+      // Spell (Magic Bolt) — always available, has own cooldown
+      if (e.code === "KeyZ") {
+        e.preventDefault();
+        castSpell();
+        return;
+      }
+      // Paladin weapon toggle
+      if (e.code === "KeyX") {
+        togglePaladinMode();
+        play("click");
+        return;
+      }
       // Use potion
-      if (e.code === 'KeyQ') {
+      if (e.code === "KeyQ") {
         usePotion();
-        play('select');
+        play("select");
         return;
       }
     };
@@ -35,13 +48,13 @@ export function useInput(enabled) {
       held.current[e.code] = false;
     };
 
-    window.addEventListener('keydown', onDown);
-    window.addEventListener('keyup',   onUp);
+    window.addEventListener("keydown", onDown);
+    window.addEventListener("keyup", onUp);
     return () => {
-      window.removeEventListener('keydown', onDown);
-      window.removeEventListener('keyup',   onUp);
+      window.removeEventListener("keydown", onDown);
+      window.removeEventListener("keyup", onUp);
     };
-  }, [enabled, movePlayer, usePotion]);
+  }, [enabled, movePlayer, usePotion, togglePaladinMode]);
 
   // Movement poll loop (for held keys)
   useEffect(() => {
@@ -51,16 +64,16 @@ export function useInput(enabled) {
       const now = Date.now();
       if (now - lastMove.current >= MOVE_COOLDOWN) {
         const h = held.current;
-        let dx = 0, dy = 0;
-        if (h['KeyW'] || h['ArrowUp'])    dy = -1;
-        if (h['KeyS'] || h['ArrowDown'])  dy =  1;
-        if (h['KeyA'] || h['ArrowLeft'])  dx = -1;
-        if (h['KeyD'] || h['ArrowRight']) dx =  1;
+        let dx = 0,
+          dy = 0;
+        if (h["KeyW"] || h["ArrowUp"]) dy = -1;
+        if (h["KeyS"] || h["ArrowDown"]) dy = 1;
+        if (h["KeyA"] || h["ArrowLeft"]) dx = -1;
+        if (h["KeyD"] || h["ArrowRight"]) dx = 1;
         if (dx !== 0 || dy !== 0) {
-          // Normalize diagonal
           if (dx !== 0 && dy !== 0) dy = 0;
           movePlayer(dx, dy);
-          play('move', 0.15);
+          play("move", 0.15);
           lastMove.current = now;
         }
       }
