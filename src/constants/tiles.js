@@ -121,8 +121,8 @@ export const SOLID_TILE_SET = new Set([
   47,
   // Blocking decorations
   TILES.CHEST,
-  TILES.BARREL,
-  TILES.CRATE,
+  // NOTE: 48–53 are sand-style walkable floor tiles in this project.
+  // Do NOT treat 48/49 as barrel/crate here, or desert levels become unwalkable.
 ]);
 
 // ── Short aliases for level maps ──────────────────────────────────────────────

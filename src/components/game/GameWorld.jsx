@@ -52,6 +52,11 @@ export default function GameWorld() {
   const collectSymbol = useGameStore((s) => s.collectSymbol);
   const collectInvisPotion = useGameStore((s) => s.collectInvisPotion);
   const setQuest = useGameStore((s) => s.setQuest);
+  const revealSecretExitDoor = useGameStore((s) => s.revealSecretExitDoor);
+  const activateDesertMechanism = useGameStore(
+    (s) => s.activateDesertMechanism,
+  );
+  const triggerMimicEncounter = useGameStore((s) => s.triggerMimicEncounter);
 
   const [shopOpen, setShopOpen] = useState(false);
   const [interaction, setInteraction] = useState(null); // { type, ... }
@@ -116,9 +121,59 @@ export default function GameWorld() {
           play("select");
           return;
         }
-        if (tile === SW && !quest.secretWallFound) {
+        // Level 1: secret wall (hidden passage) interaction only.
+        // In later levels tile 40 may appear as regular wall styling, but it
+        // must NOT trigger the hidden passage prompt/window.
+        if (currentLevelIndex === 0 && tile === SW && !quest.secretWallFound) {
           setInteraction({ type: "secret_wall" });
           play("select");
+          return;
+        }
+
+        // Level 2: Desert mechanism (hidden socket marker at Room 1 north wall)
+        // Mechanism tile chosen in buildL2: tile 41 at (28,14)
+        if (currentLevelIndex === 1 && tile === 41) {
+          const result = activateDesertMechanism();
+          if (result === "nocRank") {
+            setInteraction({
+              type: "message",
+              title: "Hidden Mechanism",
+              body: "A recessed socket... something like a crank could fit here.",
+            });
+          } else if (result === "already") {
+            setInteraction({
+              type: "message",
+              title: "Hidden Mechanism",
+              body: "Water is already flowing through the ancient pipes.",
+            });
+          } else if (result === "flowing") {
+            setInteraction({
+              type: "message",
+              title: "The Desert's Thirst",
+              body: "You turn the crank. Stone groans... then water begins to flow.",
+            });
+          } else if (result === "unlocked") {
+            setInteraction({
+              type: "message",
+              title: "The Desert's Thirst",
+              body: "The basins fill. Somewhere, a heavy lock clicks open.",
+            });
+          }
+          play("select");
+          return;
+        }
+
+        // Level 2: Mimic chest (tile 92) triggers a combat encounter
+        if (currentLevelIndex === 1 && tile === 92) {
+          triggerMimicEncounter();
+          play("select");
+          return;
+        }
+
+        // Level 1 → Level 2 exit door (user-defined open door tile index 21)
+        if (currentLevelIndex === 0 && quest.secretWallFound && tile === 21) {
+          play("select");
+          initLevel(1);
           return;
         }
       }
@@ -139,7 +194,16 @@ export default function GameWorld() {
         play("select");
       }
     },
-    [npcs, player.x, player.y, levelData, quest, setActiveNpc],
+    [
+      npcs,
+      player.x,
+      player.y,
+      levelData,
+      quest,
+      setActiveNpc,
+      currentLevelIndex,
+      initLevel,
+    ],
   );
 
   useEffect(() => {
@@ -205,12 +269,21 @@ export default function GameWorld() {
     { x: player.x, y: player.y + 1 },
     { x: player.x, y: player.y - 1 },
   ];
-  const interactableTiles = new Set([AL, LV, CH, SW]);
+  // Note: SW (secret wall tile 40) should only be interactable in Level 1.
+  // Later levels may reuse tile 40 as a plain wall variant.
+  const interactableTiles = new Set([AL, LV, CH]);
+  if (currentLevelIndex === 0) interactableTiles.add(SW);
+  // Also treat user-defined open single doors (tile 21) as interactable
+  interactableTiles.add(21);
+  // Level 2: mechanism (41) + mimic chest (92)
+  interactableTiles.add(41);
+  interactableTiles.add(92);
   const nearInteractableTile = adjacentPositions.some((pos) => {
     const t = levelData.map[pos.y]?.[pos.x];
     if (t === LV && quest.leverPulled) return false;
     if (t === CH && (!quest.leverPulled || quest.chestOpened)) return false;
-    if (t === SW && quest.secretWallFound) return false;
+    if (t === SW && (currentLevelIndex !== 0 || quest.secretWallFound))
+      return false;
     if (t === AL && quest.altarUsed) return false;
     return interactableTiles.has(t);
   });
@@ -420,6 +493,7 @@ export default function GameWorld() {
           collectSymbol={collectSymbol}
           collectInvisPotion={collectInvisPotion}
           setQuest={setQuest}
+          revealSecretExitDoor={revealSecretExitDoor}
           onClose={() => setInteraction(null)}
         />
       )}

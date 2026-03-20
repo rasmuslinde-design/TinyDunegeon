@@ -52,7 +52,6 @@ export default function HUD() {
   const toggleAutoAim = useGameStore((s) => s.toggleAutoAim);
   const usePotion = useGameStore((s) => s.usePotion);
   const setScreen = useGameStore((s) => s.setScreen);
-  const quest = useGameStore((s) => s.quest);
   const currentLevelIndex = useGameStore((s) => s.currentLevelIndex);
 
   const potions = player.inventory.filter((i) => i.type === "potion");
@@ -85,7 +84,7 @@ export default function HUD() {
             letterSpacing: 1,
           }}
         >
-          ★ LVL {player.level} — {player.charId.toUpperCase()}
+          ★ {player.charId.toUpperCase()}
         </div>
 
         <Bar
@@ -94,14 +93,6 @@ export default function HUD() {
           color="#ef4444"
           label="HP"
           icon="♥"
-        />
-        <Bar
-          value={player.xp}
-          max={player.xpNext}
-          color="#a855f7"
-          label="XP"
-          icon="✦"
-          bgColor="#0d0d1a"
         />
 
         <div
@@ -133,55 +124,8 @@ export default function HUD() {
         )}
       </div>
 
-      {/* CENTRE — Quest tracker */}
-      <div style={{ textAlign: "center", pointerEvents: "none" }}>
-        {currentLevelIndex === 0 && (
-          <div
-            style={{
-              background: "rgba(0,0,0,0.65)",
-              border: "1px solid rgba(255,215,0,0.3)",
-              borderRadius: 6,
-              padding: "8px 16px",
-              minWidth: 150,
-            }}
-          >
-            <div
-              style={{
-                color: "rgba(255,215,0,0.6)",
-                fontSize: 11,
-                letterSpacing: 2,
-                marginBottom: 4,
-              }}
-            >
-              QUEST
-            </div>
-            <div style={{ color: "#ffd700", fontSize: 14, letterSpacing: 1 }}>
-              ❖ {quest.symbolPieces}/3 Symbols
-            </div>
-            {quest.knightSpiritTalked && (
-              <div style={{ marginTop: 5 }}>
-                {[1, 2, 3].map((n) => (
-                  <span
-                    key={n}
-                    style={{
-                      display: "inline-block",
-                      width: 12,
-                      height: 12,
-                      borderRadius: "50%",
-                      background:
-                        quest.symbolPieces >= n
-                          ? "#ffd700"
-                          : "rgba(255,215,0,0.15)",
-                      border: "1px solid rgba(255,215,0,0.4)",
-                      margin: "0 3px",
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      {/* CENTRE — (intentionally empty) */}
+      <div style={{ textAlign: "center", pointerEvents: "none" }} />
 
       {/* RIGHT — Controls */}
       <div style={{ textAlign: "right", pointerEvents: "auto" }}>

@@ -6,12 +6,14 @@ import CharSelectScreen from "./components/screens/CharSelectScreen.jsx";
 import GameWorld from "./components/game/GameWorld.jsx";
 import GameOverScreen from "./components/screens/GameOverScreen.jsx";
 import WinScreen from "./components/screens/WinScreen.jsx";
+import DevLevelSelect from "./components/dev/DevLevelSelect.jsx";
 
 function App() {
   const screen = useGameStore((s) => s.screen);
 
   return (
     <>
+      {import.meta.env.DEV && <DevLevelSelect />}
       {screen === "title" && <TitleScreen />}
       {screen === "charselect" && <CharSelectScreen />}
       {screen === "game" && <GameWorld />}

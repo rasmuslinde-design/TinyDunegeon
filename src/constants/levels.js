@@ -230,6 +230,238 @@ export const L1_ROWS = 60;
 
 export { AL, LV, SP, CH, SW };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// LEVEL 2: (WIP) The Abyssal Halls — 60×60 grid
+//
+// Built using the same primitives as Level 1 (rooms + punched corridors).
+// Room layout is based on the provided sketch (rooms labeled 1–5).
+// NOTE: Until exact coordinate calibration is provided for each doorway,
+// this uses a reasonable 60×60 placement that matches the sketch's topology.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function buildL2() {
+  const COLS = 60;
+  const ROWS = 60;
+
+  // Seeded deterministic RNG — stable across reloads
+  let seed = 19;
+  function rng() {
+    seed = (seed * 1664525 + 1013904223) & 0xffffffff;
+    return (seed >>> 0) / 0xffffffff;
+  }
+  // Desert theme floor distribution (entire level):
+  // 90% 48 (Sand), 5% 49 (Sand variation), 5% 42 (Sand with pebbles)
+  // NOTE: These are tile indices from tileviewer.
+  const SAND_A = 48;
+  const SAND_B = 49;
+  const SAND_PEBBLES = 42;
+  function floorTile() {
+    const r = rng();
+    if (r < 0.9) return SAND_A;
+    if (r < 0.95) return SAND_B;
+    return SAND_PEBBLES;
+  }
+  function wallTile() {
+    return W;
+  }
+
+  const map = Array.from({ length: ROWS }, () => Array(COLS).fill(W));
+
+  function setTile(r, c, tile) {
+    if (r >= 0 && r < ROWS && c >= 0 && c < COLS) map[r][c] = tile;
+  }
+
+  function fillFloor(r1, c1, r2, c2) {
+    for (let r = r1; r <= r2; r++)
+      for (let c = c1; c <= c2; c++) setTile(r, c, floorTile());
+  }
+
+  function setFloor(r, c) {
+    setTile(r, c, floorTile());
+  }
+
+  function room(r1, c1, r2, c2) {
+    for (let r = r1; r <= r2; r++)
+      for (let c = c1; c <= c2; c++) setTile(r, c, wallTile());
+    fillFloor(r1 + 1, c1 + 1, r2 - 1, c2 - 1);
+  }
+
+  function corridorV(c, r1, r2) {
+    const lo = Math.min(r1, r2);
+    const hi = Math.max(r1, r2);
+    for (let r = lo; r <= hi; r++) {
+      setFloor(r, c);
+      setFloor(r, c + 1);
+    }
+  }
+
+  function corridorH(r, c1, c2) {
+    const lo = Math.min(c1, c2);
+    const hi = Math.max(c1, c2);
+    for (let c = lo; c <= hi; c++) {
+      setFloor(r, c);
+      setFloor(r + 1, c);
+    }
+  }
+
+  // Door tiles
+  // Locked double door closed: D2L/D2R (46/47)
+  // Locked double door open (user spec): 22/23
+  const D2L_OPEN = 22;
+  const D2R_OPEN = 23;
+
+  // Cleanup: ensure doors have floor on BOTH sides (inside room and outside corridor)
+  function ensureDoorFloor(r, c) {
+    // inside
+    setFloor(r + 1, c);
+    // outside
+    setFloor(r - 1, c);
+  }
+
+  // Place a Y-axis (north-wall) double door pair at (r,c) and (r,c+1)
+  function placeNorthDoubleDoor(r, c, isOpen = false) {
+    setTile(r, c, isOpen ? D2L_OPEN : D2L);
+    setTile(r, c + 1, isOpen ? D2R_OPEN : D2R);
+    // carve floor on both sides for each tile
+    ensureDoorFloor(r, c);
+    ensureDoorFloor(r, c + 1);
+  }
+
+  // ── ROOMS (placed to match the provided layout image) ────────────────────
+  // Coordinates are (row, col). All rooms are rectangles; corridors punch through walls.
+  // Room 1: big left chamber
+  room(28, 6, 46, 22);
+  // Room 2: upper-mid rectangle
+  room(8, 26, 20, 36);
+  // Room 3: center-lower rectangle
+  room(30, 34, 44, 46);
+  // Room 4: big right chamber
+  room(18, 48, 42, 58);
+  // Room 5: top-right square
+  room(2, 46, 12, 56);
+
+  // ── CONNECTIONS / CORRIDORS (match image topology) ───────────────────────
+  // 1 → 2 : corridor north from Room 1, then east into Room 2 (LOCKED door at R1)
+  // Room 1 north wall is row 28. Place door pair near right side of Room 1.
+  // Room 1 puzzle exit: single door (on the right half) locked until basins are filled.
+  // Requirement: make left half a wall, right half a single door (45 closed / 33 open).
+  // Coordinates provided use (row, col).
+  setTile(28, 16, W2); // wall (solid)
+  setTile(28, 17, 45); // single door CLOSED
+  // Ensure floor on both sides of the door
+  setFloor(27, 17);
+  setFloor(29, 17);
+  // go up 6 tiles (rows 27..22)
+  corridorV(16, 22, 27);
+  // then go east toward Room 2 (Room 2 west edge col 26)
+  corridorH(22, 16, 26);
+
+  // 1 → 3 : corridor east from lower part of Room 1 into Room 3
+  corridorH(40, 22, 34);
+  // breach into Room 3 west wall
+  setFloor(40, 34);
+  setFloor(41, 34);
+
+  // 2 → 3 : vertical shaft down from Room 2 to Room 3 (like image)
+  // Start at Room 2 south wall row 20 around col 36.
+  placeNorthDoubleDoor(20, 34, true);
+  corridorV(34, 20, 30);
+
+  // 3 → 4 : corridor east into Room 4
+  corridorH(34, 46, 48);
+  setFloor(34, 48);
+  setFloor(35, 48);
+
+  // 4 → 5 : corridor north from Room 4 into Room 5 (two entrances in image)
+  // left entrance
+  placeNorthDoubleDoor(18, 50, true);
+  corridorV(50, 12, 18);
+  // right entrance
+  placeNorthDoubleDoor(18, 54, true);
+  corridorV(54, 12, 18);
+
+  // Final cleanup pass: ensure any door tiles have floor adjacent.
+  // (We only placed north-wall doors here, so we check for 46/47/22/23.)
+  for (let r = 1; r < ROWS - 1; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const t = map[r][c];
+      if (t === D2L || t === D2R || t === D2L_OPEN || t === D2R_OPEN) {
+        setFloor(r - 1, c);
+        setFloor(r + 1, c);
+      }
+    }
+  }
+
+  // ── PUZZLE SETUP: "The Desert's Thirst" (Room 1) ─────────────────────────
+  // Room 1 bounds: r:28-46, c:6-22
+  // North wall objects on row 28.
+  const GARGOYLE = 19;
+  const GARGOYLE_WATER = 20;
+  const WALL_HOLE = 7;
+  const WALL_HOLE_WATER = 8;
+  const BASIN = 31;
+  const BASIN_WATER = 32;
+  // Hidden mechanism tile index.
+  // IMPORTANT: tile 40 is part of SOLID_TILE_SET (wall), which would block
+  // movement if used as an interactable. Use a non-solid, unused-looking tile
+  // index instead as the "socket" marker.
+  const MECH_HIDDEN = 41;
+
+  // Place two gargoyles and two wall holes along the north wall.
+  // (Keeping them spaced and inside the room width.)
+  const northWallR = 28;
+  const fixtures = [
+    { c: 9, t: GARGOYLE },
+    { c: 12, t: WALL_HOLE },
+    { c: 16, t: GARGOYLE },
+    { c: 19, t: WALL_HOLE },
+  ];
+  for (const f of fixtures) {
+    setTile(northWallR, f.c, f.t);
+    setTile(northWallR + 1, f.c, BASIN);
+    // Ensure basin sits on walkable floor around it
+    setFloor(northWallR + 2, f.c);
+  }
+  // Hidden mechanism tile in the wall (choose a wall tile on the north wall)
+  const mechanism = { r: northWallR, c: 14 };
+  setTile(mechanism.r, mechanism.c, MECH_HIDDEN);
+
+  // Additional locked double doors for this level's gating
+  // - North exit door already placed at (28,16) + (28,17)
+  // - Secondary exit at (40,22) + (40,23)
+  // Convert to a SINGLE door on the LEFT half (col 22): 45 closed / 33 open.
+  // Right half (col 23) becomes floor.
+  setTile(40, 22, 45); // single door CLOSED
+  setFloor(40, 23); // floor
+  // Ensure floor on both sides of the door (north/south)
+  setFloor(39, 22);
+  setFloor(41, 22);
+  // Ensure walls 1 tile above and below the single door
+  setTile(39, 22, W2);
+  setTile(41, 22, W2);
+
+  // ── North dead-end corridor: mimic chest (r:22-27, c:16) ─────────────────
+  // Corridor itself is carved above; place the mimic at its end.
+  const MIMIC_CHEST = 92;
+  setTile(22, 16, MIMIC_CHEST);
+
+  // Ensure *all* walkable areas are using desert floor distribution.
+  // Convert any legacy stone floor tiles (0/12/24) to desert floors while
+  // leaving walls/doors/objects intact.
+  const LEGACY_FLOORS = new Set([F, FR, FR2]);
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (LEGACY_FLOORS.has(map[r][c])) map[r][c] = floorTile();
+    }
+  }
+
+  return map;
+}
+
+const L2_LARGE_MAP = buildL2();
+export const L2_COLS = 60;
+export const L2_ROWS = 60;
+
 // ── LEVEL 2: The Catacombs ────────────────────────────────────────────────────
 const L2_MAP = [
   [W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W],
@@ -575,24 +807,23 @@ export const LEVELS = [
     altarEnemy: { type: "skeleton", x: 12, y: 39 },
   },
   {
-    name: "The Catacombs",
-    bgColor: "#0a0a12",
+    name: "The Abyssal Halls",
+    bgColor: "#070812",
     floorTile: 0,
-    map: L2_MAP,
-    playerStart: { x: 9, y: 7 },
+    map: L2_LARGE_MAP,
+    cols: 60,
+    rows: 60,
+    // Spawn inside Room 1 on a free floor tile (no objects in L2 yet)
+    // Room 1 rect is room(28, 6, 46, 22) so an interior floor like (row 37, col 14) is safe.
+    playerStart: { x: 14, y: 37 },
     interactables: [],
     enemies: [
-      { type: "zombie", x: 4, y: 4 },
-      { type: "spider", x: 15, y: 4 },
-      { type: "zombie", x: 3, y: 12 },
-      { type: "skeleton", x: 14, y: 12 },
-      { type: "bat", x: 9, y: 10 },
-      { type: "slime", x: 6, y: 7 },
+      // Room 1 combat: 3 enemies; one drops the Golden Crank quest item
+      { type: "skeleton", x: 18, y: 36, drops: "golden_crank" },
+      { type: "orc", x: 12, y: 40 },
+      { type: "slime", x: 19, y: 42 },
     ],
-    npcs: [
-      { type: "trainer", x: 16, y: 3 },
-      { type: "blacksmith", x: 16, y: 12 },
-    ],
+    npcs: [],
   },
   {
     name: "Sand Ruins",

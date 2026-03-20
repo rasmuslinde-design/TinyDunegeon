@@ -59,6 +59,20 @@ const btn = (accent = "#7c5cbf") => ({
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+function MessageDialog({ title, body, onClose }) {
+  return (
+    <div style={boxStyle}>
+      <div style={titleStyle}>{title ?? "Message"}</div>
+      <div style={bodyStyle}>{body ?? ""}</div>
+      <div style={btnRow}>
+        <button style={btn()} onClick={onClose}>
+          CLOSE
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AltarDialog({ quest, useAltar, onClose }) {
   if (quest.altarUsed) {
     return (
@@ -279,7 +293,7 @@ function ChestDialog({ quest, collectSymbol, symbol, onClose }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-function SecretWallDialog({ quest, setQuest, onClose }) {
+function SecretWallDialog({ quest, setQuest, revealSecretExitDoor, onClose }) {
   return (
     <div style={boxStyle}>
       <div style={titleStyle}>🔍 Secret Passage</div>
@@ -302,6 +316,7 @@ function SecretWallDialog({ quest, setQuest, onClose }) {
             style={btn("#1a6080")}
             onClick={() => {
               setQuest({ secretWallFound: true });
+              revealSecretExitDoor?.();
               onClose();
             }}
           >
@@ -375,12 +390,21 @@ export default function InteractionOverlay({
   collectSymbol,
   collectInvisPotion,
   setQuest,
+  revealSecretExitDoor,
   onClose,
 }) {
   if (!interaction) return null;
 
   const content = (() => {
     switch (interaction.type) {
+      case "message":
+        return (
+          <MessageDialog
+            title={interaction.title}
+            body={interaction.body}
+            onClose={onClose}
+          />
+        );
       case "altar":
         return (
           <AltarDialog quest={quest} useAltar={useAltar} onClose={onClose} />
@@ -411,6 +435,7 @@ export default function InteractionOverlay({
           <SecretWallDialog
             quest={quest}
             setQuest={setQuest}
+            revealSecretExitDoor={revealSecretExitDoor}
             onClose={onClose}
           />
         );

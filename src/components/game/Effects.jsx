@@ -140,28 +140,6 @@ export function Particles({ particles }) {
           );
         }
 
-        if (p.type === "levelup") {
-          return (
-            <div
-              key={p.id}
-              style={{
-                position: "absolute",
-                left: px - 30,
-                top: py - 16,
-                color: "#ffd700",
-                fontSize: 13,
-                fontFamily: "KenneyFuture, monospace",
-                zIndex: 30,
-                pointerEvents: "none",
-                animation: `levelUpPop ${p.life}ms ease-out forwards`,
-                textShadow: "0 0 10px #ffd700, 0 1px 3px #000",
-              }}
-            >
-              LEVEL UP!
-            </div>
-          );
-        }
-
         return null;
       })}
     </>

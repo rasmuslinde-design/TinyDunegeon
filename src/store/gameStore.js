@@ -14,7 +14,7 @@ function getEnemyBase(type) {
   return ENEMY_SPRITES[type] ?? { hp: 20, dmg: 5, xp: 10, speed: 1000 };
 }
 
-const XP_PER_LEVEL = (lvl) => lvl * 50;
+// Level-up mechanics are disabled (kept simple for this project phase).
 
 const initialPlayer = {
   x: 9,
@@ -24,7 +24,7 @@ const initialPlayer = {
   hp: 80,
   maxHp: 80,
   xp: 0,
-  xpNext: 50,
+  xpNext: 999999,
   level: 1,
   gold: 0,
   atk: 8,
@@ -143,8 +143,6 @@ export const useGameStore = create((set, get) => ({
         gold: s.player.gold + Math.floor(amount / 2),
       },
     }));
-    const p = get().player;
-    if (p.xp >= p.xpNext) get().levelUp();
   },
 
   setAttackTime: (t) =>
@@ -153,36 +151,20 @@ export const useGameStore = create((set, get) => ({
     })),
 
   killEnemy: (id) => {
+    const { enemies } = get();
+    const target = enemies.find((e) => e.id === id);
     set((s) => ({
       enemies: s.enemies.map((e) => (e.id === id ? { ...e, alive: false } : e)),
     }));
-  },
 
-  levelUp: () =>
-    set((s) => {
-      const newLvl = s.player.level + 1;
-      return {
-        player: {
-          ...s.player,
-          level: newLvl,
-          atk: s.player.atk + 5,
-          maxHp: s.player.maxHp + 20,
-          hp: Math.min(s.player.hp + 20, s.player.maxHp + 20),
-          xp: s.player.xp - s.player.xpNext,
-          xpNext: XP_PER_LEVEL(newLvl),
-        },
-        particles: [
-          ...s.particles,
-          {
-            id: Date.now(),
-            type: "levelup",
-            x: s.player.x,
-            y: s.player.y,
-            life: 1500,
-          },
-        ],
-      };
-    }),
+    // Special drops / flags
+    if (target?.drops === "golden_crank") {
+      get().grantGoldenCrank();
+    }
+    if (target?.isMimic) {
+      set((s) => ({ quest: { ...s.quest, mimicDefeated: true } }));
+    }
+  },
 
   damagePlayer: (amount) => {
     set((s) => {
@@ -286,8 +268,166 @@ export const useGameStore = create((set, get) => ({
     spikesVisible: false, // room3 spikes visible after lever
     secretWallFound: false, // room5 secret passage found
     knightSpiritTalked: false, // room2 NPC talked to
+
+    // Level 2: "The Desert's Thirst" puzzle state
+    // React state requirement: tracked here in Zustand store (React state container)
+    isWaterFlowing: false,
+    basinsFilled: 0,
+    goldenCrankFound: false,
+    desertMechanismActivated: false,
+    mimicDefeated: false,
   },
   setQuest: (partial) => set((s) => ({ quest: { ...s.quest, ...partial } })),
+
+  // ─── Level 2: helpers for water puzzle + mimic ────────────────────────────
+  // Adds the Golden Crank to inventory (called when a special enemy dies).
+  grantGoldenCrank: () => {
+    const { quest } = get();
+    if (quest.goldenCrankFound) return;
+    set((s) => ({
+      quest: { ...s.quest, goldenCrankFound: true },
+      player: {
+        ...s.player,
+        inventory: [
+          ...s.player.inventory,
+          {
+            id: `golden_crank_${Date.now()}`,
+            type: "quest",
+            name: "Golden Crank",
+            key: "golden_crank",
+          },
+        ],
+      },
+    }));
+  },
+
+  // Activate the hidden mechanism in Level 2 Room 1.
+  // Requirements:
+  // - must possess Golden Crank
+  // - toggles isWaterFlowing
+  // - swaps tiles 19→20, 7→8, 31→32 in Room 1 bounds
+  // - unlocks doors (46/47 → 34/35) once all 4 basins are filled
+  activateDesertMechanism: () => {
+    const { levelData, currentLevelIndex, player, quest } = get();
+    if (!levelData || currentLevelIndex !== 1) return "wronglevel";
+    if (quest.desertMechanismActivated) return "already";
+
+    const hasCrank = player.inventory.some((i) => i.key === "golden_crank");
+    if (!hasCrank) return "nocRank";
+
+    const ROOM1 = { r1: 28, r2: 46, c1: 6, c2: 22 };
+    const toUpdate = new Set([19, 7, 31]);
+    const newMap = levelData.map.map((row, r) =>
+      row.map((cell, c) => {
+        const inRoom1 =
+          r >= ROOM1.r1 && r <= ROOM1.r2 && c >= ROOM1.c1 && c <= ROOM1.c2;
+        if (!inRoom1) return cell;
+        if (!toUpdate.has(cell)) return cell;
+        if (cell === 19) return 20;
+        if (cell === 7) return 8;
+        if (cell === 31) return 32;
+        return cell;
+      }),
+    );
+
+    // Count filled basins
+    let filled = 0;
+    for (let r = ROOM1.r1; r <= ROOM1.r2; r++) {
+      for (let c = ROOM1.c1; c <= ROOM1.c2; c++) {
+        if (newMap[r]?.[c] === 32) filled++;
+      }
+    }
+    // Four basins total.
+    const basinsFilled = Math.min(4, filled);
+
+    // Unlock exits only if all four basins are filled.
+    // - Room 1 north exit: single door at (28,17): 45 -> 33
+    // - Room 1 east exit: double door at (40,22)-(40,23): 46/47 -> 34/35
+    const unlockedMap =
+      basinsFilled >= 4
+        ? newMap.map((row, r) =>
+            row.map((cell, c) => {
+              // single door
+              if (r === 28 && c === 17) return 33;
+              // right-side exit: single door
+              if (r === 40 && c === 22) return 33;
+              return cell;
+            }),
+          )
+        : newMap;
+
+    set((s) => ({
+      quest: {
+        ...s.quest,
+        isWaterFlowing: true,
+        desertMechanismActivated: true,
+        basinsFilled,
+      },
+      levelData: { ...s.levelData, map: unlockedMap },
+    }));
+
+    return basinsFilled >= 4 ? "unlocked" : "flowing";
+  },
+
+  // When interacting with the mimic chest (tile 92), it becomes a high-HP enemy.
+  triggerMimicEncounter: () => {
+    const { levelData, currentLevelIndex, quest, enemies } = get();
+    if (!levelData || currentLevelIndex !== 1) return false;
+    if (quest.mimicDefeated) return false;
+
+    const x = 16;
+    const y = 22;
+    // Remove the chest tile so it doesn't look lootable.
+    const newMap = levelData.map.map((row, r) =>
+      row.map((cell, c) => (r === y && c === x ? 48 : cell)),
+    );
+
+    // Spawn a tough mimic enemy that attacks immediately.
+    // Using an existing enemy sprite type; bump HP a lot.
+    const base = getEnemyBase("slime");
+    const mimic = {
+      type: "slime",
+      x,
+      y,
+      id: `mimic_${Date.now()}`,
+      alive: true,
+      hp: Math.max(120, base.hp * 4),
+      maxHp: Math.max(120, base.hp * 4),
+      facing: "down",
+      aiTimer: 0,
+      path: [],
+      isMimic: true,
+    };
+
+    set((s) => ({
+      levelData: { ...s.levelData, map: newMap },
+      enemies: [...s.enemies, mimic],
+    }));
+    return true;
+  },
+
+  // ─── Level transitions / special triggers ─────────────────────────────────
+  // Level 1 secret passage: reveal an open single-door tile (index 21) left of
+  // the secret-wall tiles, which becomes an interactable exit to Level 2.
+  // Door is 2 tiles high to match the 2-high secret passage.
+  revealSecretExitDoor: () => {
+    const { levelData, currentLevelIndex } = get();
+    if (!levelData || currentLevelIndex !== 0) return;
+
+    // Secret wall coords are defined on the level data.
+    const secret = levelData.secretWalls ?? [];
+    if (!Array.isArray(secret) || secret.length === 0) return;
+
+    const doorTile = 21; // user-defined: open single door
+    const newMap = levelData.map.map((row, r) =>
+      row.map((cell, c) => {
+        const isLeftOfSecret = secret.some((s) => s.x - 1 === c && s.y === r);
+        return isLeftOfSecret ? doorTile : cell;
+      }),
+    );
+
+    set((s) => ({ levelData: { ...s.levelData, map: newMap } }));
+  },
 
   useAltar: () => {
     const { player, quest } = get();

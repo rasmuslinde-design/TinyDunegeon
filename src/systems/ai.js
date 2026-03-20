@@ -37,6 +37,8 @@ function stepToward(map, from, to, enemies, levelData) {
     if (m.x === 0 && m.y === 0) continue;
     const nx = from.x + m.x;
     const ny = from.y + m.y;
+    // Never allow an enemy to occupy the same tile as the player.
+    if (nx === to.x && ny === to.y) continue;
     if (
       !isSolid(map, nx, ny, levelData) &&
       !enemies.some(
@@ -49,7 +51,7 @@ function stepToward(map, from, to, enemies, levelData) {
   return null;
 }
 
-function randomStep(map, from, enemies, levelData) {
+function randomStep(map, from, enemies, levelData, player) {
   const dirs = [
     { x: 1, y: 0 },
     { x: -1, y: 0 },
@@ -60,6 +62,7 @@ function randomStep(map, from, enemies, levelData) {
   for (const d of shuffled) {
     const nx = from.x + d.x;
     const ny = from.y + d.y;
+    if (player && nx === player.x && ny === player.y) continue;
     if (
       !isSolid(map, nx, ny, levelData) &&
       !enemies.some(
@@ -104,7 +107,7 @@ export function tickAI(now) {
         newPos =
           d <= 12
             ? stepToward(levelData.map, enemy, player, enemies, levelData)
-            : randomStep(levelData.map, enemy, enemies, levelData);
+            : randomStep(levelData.map, enemy, enemies, levelData, player);
         break;
 
       case "erratic": {
@@ -139,7 +142,7 @@ export function tickAI(now) {
         newPos =
           d <= 12
             ? stepToward(levelData.map, enemy, player, enemies, levelData)
-            : randomStep(levelData.map, enemy, enemies, levelData);
+            : randomStep(levelData.map, enemy, enemies, levelData, player);
         break;
 
       case "charge":
@@ -207,7 +210,7 @@ export function tickAI(now) {
       }
 
       default:
-        newPos = randomStep(levelData.map, enemy, enemies);
+        newPos = randomStep(levelData.map, enemy, enemies, levelData, player);
         break;
     }
 
@@ -225,12 +228,6 @@ export function tickAI(now) {
                 ? "down"
                 : "up",
       });
-
-      // Melee contact damage
-      if (newPos.x === player.x && newPos.y === player.y) {
-        damagePlayer(base.dmg);
-        play("hit", 0.5);
-      }
     } else {
       updateEnemy(enemy.id, { aiTimer: now });
     }
