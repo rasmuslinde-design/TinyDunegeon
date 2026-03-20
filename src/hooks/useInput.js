@@ -3,7 +3,9 @@ import { useGameStore } from "../store/gameStore.js";
 import { playerAttack, castSpell } from "../systems/combat.js";
 import { play } from "../systems/sound.js";
 
-const MOVE_COOLDOWN = 160; // ms between grid steps
+// Slightly slower step rate improves perceived smoothness of the lerp renderer
+// and reduces the "teleport"/"hack" feel on fast repeats.
+const MOVE_COOLDOWN = 190; // ms between grid steps
 
 export function useInput(enabled) {
   const movePlayer = useGameStore((s) => s.movePlayer);

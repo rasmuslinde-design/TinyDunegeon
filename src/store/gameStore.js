@@ -88,7 +88,7 @@ export const useGameStore = create((set, get) => ({
     }));
     setTimeout(
       () => set((s) => ({ player: { ...s.player, moving: false } })),
-      150,
+      190,
     );
   },
 

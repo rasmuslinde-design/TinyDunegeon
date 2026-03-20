@@ -67,6 +67,7 @@ export default function Player({ player }) {
           transition: "left 0.05s, top 0.05s",
         }}
       />
+
       <Sprite
         row={sprite.row}
         col={sprite.col}
@@ -81,6 +82,7 @@ export default function Player({ player }) {
           zIndex: 10,
         }}
       />
+
       {/* Weapon swing arc */}
       {player.attacking && player.weapon?.type === "melee" && (
         <div

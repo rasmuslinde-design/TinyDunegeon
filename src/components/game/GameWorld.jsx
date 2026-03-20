@@ -63,10 +63,12 @@ export default function GameWorld() {
   const [, setTick] = useState(0); // forces re-render for cooldown bars
   const rafRef = useRef(null);
   const lastRef = useRef(0);
+  const camRef = useRef({ x: 0, y: 0 });
+  const lastCamTickRef = useRef({ x: 0, y: 0 });
 
-  // Tick every 80ms to animate cooldown bars smoothly
+  // Lightweight tick for UI (cooldowns). Camera follow uses RAF tick.
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 80);
+    const id = setInterval(() => setTick((t) => t + 1), 160);
     return () => clearInterval(id);
   }, []);
 
@@ -80,11 +82,46 @@ export default function GameWorld() {
       lastRef.current = now;
       tickAI(now);
       tickProjectiles(dt);
+
+      // Smooth camera follow (updates refs + triggers lightweight rerender)
+      if (levelData) {
+        const { w: WORLD_W, h: WORLD_H } = worldSize(levelData);
+        const viewW = window.innerWidth;
+        const viewH = window.innerHeight;
+        const targetCamX = Math.max(
+          0,
+          Math.min(
+            WORLD_W - viewW,
+            player.x * RENDERED_TILE - viewW / 2 + RENDERED_TILE / 2,
+          ),
+        );
+        const targetCamY = Math.max(
+          0,
+          Math.min(
+            WORLD_H - viewH,
+            player.y * RENDERED_TILE - viewH / 2 + RENDERED_TILE / 2,
+          ),
+        );
+        const CAMERA_LERP = 0.15;
+        camRef.current.x += (targetCamX - camRef.current.x) * CAMERA_LERP;
+        camRef.current.y += (targetCamY - camRef.current.y) * CAMERA_LERP;
+
+        // Force a re-render only when camera moved enough to matter visually.
+        // This keeps smooth camera follow without pegging React at 60fps.
+        const dx = Math.abs(camRef.current.x - lastCamTickRef.current.x);
+        const dy = Math.abs(camRef.current.y - lastCamTickRef.current.y);
+        if (dx + dy >= 0.5) {
+          lastCamTickRef.current.x = camRef.current.x;
+          lastCamTickRef.current.y = camRef.current.y;
+          setTick((t) => t + 1);
+        }
+      }
+
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
-  }, []);
+  }, [levelData, player.x, player.y]);
 
   // Interact key (E) — NPC shop + quest special tiles
   const handleInteract = useCallback(
@@ -245,21 +282,34 @@ export default function GameWorld() {
   const viewW = window.innerWidth;
   const viewH = window.innerHeight;
 
-  // Camera: keep player centred, clamp so we never show outside world bounds
-  const camX = Math.max(
+  // Camera target: keep player centred, clamp so we never show outside world bounds
+  const targetCamX = Math.max(
     0,
     Math.min(
       WORLD_W - viewW,
       player.x * RENDERED_TILE - viewW / 2 + RENDERED_TILE / 2,
     ),
   );
-  const camY = Math.max(
+  const targetCamY = Math.max(
     0,
     Math.min(
       WORLD_H - viewH,
       player.y * RENDERED_TILE - viewH / 2 + RENDERED_TILE / 2,
     ),
   );
+
+  // Smooth camera follow: lerp the camera position toward the target.
+  // Kept in a ref to avoid rerendering the whole world at 60fps; we only
+  // invalidate a lightweight tick state.
+  const CAMERA_LERP = 0.15;
+  const camX = camRef.current.x;
+  const camY = camRef.current.y;
+
+  useEffect(() => {
+    // Snap camera on level change / first mount to avoid seeing outside map.
+    camRef.current.x = targetCamX;
+    camRef.current.y = targetCamY;
+  }, [currentLevelIndex, targetCamX, targetCamY]);
 
   // ── [E] prompt: is player adjacent to any interactable tile? ──
   const adjacentPositions = [
