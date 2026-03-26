@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useGameStore } from "../../store/gameStore.js";
 import { play } from "../../systems/sound.js";
+import { useLeaderboard } from "../../contexts/LeaderboardContext.jsx";
 
 export default function GameOverScreen() {
   const player = useGameStore((s) => s.player);
@@ -10,10 +11,8 @@ export default function GameOverScreen() {
 
   const endRun = useGameStore((s) => s.endRun);
   const getFinalScore = useGameStore((s) => s.getFinalScore);
-  const submitScore = useGameStore((s) => s.submitScore);
-  const fetchLeaderboard = useGameStore((s) => s.fetchLeaderboard);
-  const leaderboard = useGameStore((s) => s.leaderboard);
-  const submittingScore = useGameStore((s) => s.submittingScore);
+
+  const { state: lb, loadTop, submit } = useLeaderboard();
 
   const [name, setName] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -22,8 +21,8 @@ export default function GameOverScreen() {
 
   useEffect(() => {
     endRun();
-    fetchLeaderboard(10);
-  }, [endRun, fetchLeaderboard]);
+    loadTop(10);
+  }, [endRun, loadTop]);
 
   return (
     <div
@@ -144,11 +143,21 @@ export default function GameOverScreen() {
             maxLength={18}
           />
           <button
-            disabled={submittingScore || submitted}
+            disabled={lb.submitting || submitted}
             onClick={async () => {
-              const ok = await submitScore({
-                name: name.trim() || "Anonymous",
+              const ok = await submit({
+                name: (name.trim() || "Anonymous").slice(0, 18),
+                score,
                 result: "gameover",
+                kills: useGameStore.getState().killCount,
+                seconds: Math.round(
+                  ((useGameStore.getState().runEndMs || Date.now()) -
+                    (useGameStore.getState().runStartMs || Date.now())) /
+                    1000,
+                ),
+                levelReached: useGameStore.getState().currentLevelIndex + 1,
+                charId: useGameStore.getState().player.charId,
+                ts: Date.now(),
               });
               if (ok) {
                 setSubmitted(true);
@@ -164,13 +173,13 @@ export default function GameOverScreen() {
               fontSize: 10,
               padding: "10px 14px",
               borderRadius: 6,
-              cursor: submittingScore || submitted ? "not-allowed" : "pointer",
+              cursor: lb.submitting || submitted ? "not-allowed" : "pointer",
               fontFamily: "KenneyFuture, monospace",
               letterSpacing: 2,
-              opacity: submittingScore || submitted ? 0.6 : 1,
+              opacity: lb.submitting || submitted ? 0.6 : 1,
             }}
           >
-            {submitted ? "POSTED" : submittingScore ? "SENDING..." : "POST"}
+            {submitted ? "POSTED" : lb.submitting ? "SENDING..." : "POST"}
           </button>
         </div>
         <div style={{ color: "#555", fontSize: 9, marginTop: 10 }}>
@@ -196,10 +205,10 @@ export default function GameOverScreen() {
           TOP 10
         </div>
         <div style={{ marginTop: 10, fontSize: 10, color: "#ddd" }}>
-          {Array.isArray(leaderboard) ? (
-            leaderboard.length ? (
+          {Array.isArray(lb.rows) ? (
+            lb.rows.length ? (
               <div style={{ display: "grid", gap: 6 }}>
-                {leaderboard.slice(0, 10).map((row, idx) => (
+                {lb.rows.slice(0, 10).map((row, idx) => (
                   <div
                     key={row.id ?? `${row.name}_${idx}`}
                     style={{

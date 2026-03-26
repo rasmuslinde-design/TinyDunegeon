@@ -6,10 +6,6 @@ import {
   CHAR_CONFIGS,
 } from "../constants/sprites.js";
 import { SOLID_TILE_SET } from "../constants/tiles.js";
-import {
-  fetchLeaderboard as apiFetchLeaderboard,
-  postScore as apiPostScore,
-} from "../services/leaderboardApi.js";
 
 // Tiles that are walkable even though they look like doors (open door halves)
 const OPEN_DOOR_TILES = new Set([33, 34, 35]); // DO, D2OL, D2OR
@@ -56,9 +52,6 @@ export const useGameStore = create((set, get) => ({
   runEndMs: 0,
   killCount: 0,
   killScore: 0,
-  leaderboard: null,
-  submittingScore: false,
-  scoreError: null,
 
   startRun: () => {
     const now = Date.now();
@@ -103,40 +96,8 @@ export const useGameStore = create((set, get) => ({
     return timeBonus + killScore;
   },
 
-  fetchLeaderboard: async (limit = 10) => {
-    set({ scoreError: null });
-    const data = await apiFetchLeaderboard(limit);
-    if (!data) {
-      set({ leaderboard: null });
-      return null;
-    }
-    set({ leaderboard: data });
-    return data;
-  },
-
-  submitScore: async ({ name, result }) => {
-    const store = get();
-    const score = store.getFinalScore();
-    const payload = {
-      name: String(name || "Anonymous").slice(0, 18),
-      score,
-      result: result || "unknown", // "gameover" | "win"
-      kills: store.killCount,
-      seconds: Math.round(
-        ((store.runEndMs || Date.now()) - (store.runStartMs || Date.now())) /
-          1000,
-      ),
-      levelReached: store.currentLevelIndex + 1,
-      charId: store.player.charId,
-      ts: Date.now(),
-    };
-
-    set({ submittingScore: true, scoreError: null });
-    const ok = await apiPostScore(payload);
-    set({ submittingScore: false, scoreError: ok ? null : "submit_failed" });
-    if (ok) await get().fetchLeaderboard(10);
-    return ok;
-  },
+  // NOTE: Leaderboard fetching/submission is handled with React
+  // useReducer+useContext in LeaderboardContext.
 
   // ─── Level ─────────────────────────────────────────────────────────────────
   currentLevelIndex: 0,
@@ -811,8 +772,5 @@ export const useGameStore = create((set, get) => ({
       runEndMs: 0,
       killCount: 0,
       killScore: 0,
-      leaderboard: null,
-      submittingScore: false,
-      scoreError: null,
     }),
 }));

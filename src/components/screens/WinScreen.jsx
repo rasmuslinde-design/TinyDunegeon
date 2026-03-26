@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useGameStore } from "../../store/gameStore.js";
 import { play } from "../../systems/sound.js";
+import { useLeaderboard } from "../../contexts/LeaderboardContext.jsx";
 
 export default function WinScreen() {
   const player = useGameStore((s) => s.player);
@@ -9,8 +10,7 @@ export default function WinScreen() {
 
   const endRun = useGameStore((s) => s.endRun);
   const getFinalScore = useGameStore((s) => s.getFinalScore);
-  const submitScore = useGameStore((s) => s.submitScore);
-  const submittingScore = useGameStore((s) => s.submittingScore);
+  const { state: lb, submit } = useLeaderboard();
 
   const [name, setName] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -158,11 +158,21 @@ export default function WinScreen() {
             maxLength={18}
           />
           <button
-            disabled={submittingScore || submitted}
+            disabled={lb.submitting || submitted}
             onClick={async () => {
-              const ok = await submitScore({
-                name: name.trim() || "Anonymous",
+              const ok = await submit({
+                name: (name.trim() || "Anonymous").slice(0, 18),
+                score,
                 result: "win",
+                kills: useGameStore.getState().killCount,
+                seconds: Math.round(
+                  ((useGameStore.getState().runEndMs || Date.now()) -
+                    (useGameStore.getState().runStartMs || Date.now())) /
+                    1000,
+                ),
+                levelReached: useGameStore.getState().currentLevelIndex + 1,
+                charId: useGameStore.getState().player.charId,
+                ts: Date.now(),
               });
               if (ok) {
                 setSubmitted(true);
@@ -178,13 +188,13 @@ export default function WinScreen() {
               fontSize: 10,
               padding: "10px 14px",
               borderRadius: 6,
-              cursor: submittingScore || submitted ? "not-allowed" : "pointer",
+              cursor: lb.submitting || submitted ? "not-allowed" : "pointer",
               fontFamily: "KenneyFuture, monospace",
               letterSpacing: 2,
-              opacity: submittingScore || submitted ? 0.6 : 1,
+              opacity: lb.submitting || submitted ? 0.6 : 1,
             }}
           >
-            {submitted ? "POSTED" : submittingScore ? "SENDING..." : "POST"}
+            {submitted ? "POSTED" : lb.submitting ? "SENDING..." : "POST"}
           </button>
         </div>
       </div>
