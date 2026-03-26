@@ -6,6 +6,10 @@ import {
   CHAR_CONFIGS,
 } from "../constants/sprites.js";
 import { SOLID_TILE_SET } from "../constants/tiles.js";
+import {
+  fetchLeaderboard as apiFetchLeaderboard,
+  postScore as apiPostScore,
+} from "../services/leaderboardApi.js";
 
 // Tiles that are walkable even though they look like doors (open door halves)
 const OPEN_DOOR_TILES = new Set([33, 34, 35]); // DO, D2OL, D2OR
@@ -44,6 +48,95 @@ export const useGameStore = create((set, get) => ({
   // ─── Screens ───────────────────────────────────────────────────────────────
   screen: "title", // title | charselect | game | gameover | win
   setScreen: (s) => set({ screen: s }),
+
+  // ─── Scoring / Leaderboard (HTTP integration) ───────────────────────────
+  // Timer-based score: faster runs => higher score.
+  // Kill score: each kill adds points.
+  runStartMs: 0,
+  runEndMs: 0,
+  killCount: 0,
+  killScore: 0,
+  leaderboard: null,
+  submittingScore: false,
+  scoreError: null,
+
+  startRun: () => {
+    const now = Date.now();
+    set({ runStartMs: now, runEndMs: 0, killCount: 0, killScore: 0 });
+  },
+
+  endRun: () => {
+    const now = Date.now();
+    set((s) => ({ runEndMs: s.runEndMs || now }));
+  },
+
+  addKillScore: (enemyType) => {
+    // Simple points table (safe default). Tweak freely.
+    const pointsByType = {
+      slime: 10,
+      bat: 12,
+      spider: 16,
+      skeleton: 20,
+      zombie: 24,
+      orc: 30,
+      wizard: 35,
+      troll: 45,
+      demon: 80,
+      dragon: 120,
+      ghost_boss: 150,
+    };
+    const pts = pointsByType[enemyType] ?? 15;
+    set((s) => ({
+      killCount: s.killCount + 1,
+      killScore: s.killScore + pts,
+    }));
+  },
+
+  getFinalScore: () => {
+    const { runStartMs, runEndMs, killScore } = get();
+    if (!runStartMs) return 0;
+    const end = runEndMs || Date.now();
+    const elapsedMs = Math.max(1, end - runStartMs);
+    const elapsedSec = elapsedMs / 1000;
+    // Base decreases with time; add killScore.
+    const timeBonus = Math.max(0, Math.floor(5000 - elapsedSec * 10));
+    return timeBonus + killScore;
+  },
+
+  fetchLeaderboard: async (limit = 10) => {
+    set({ scoreError: null });
+    const data = await apiFetchLeaderboard(limit);
+    if (!data) {
+      set({ leaderboard: null });
+      return null;
+    }
+    set({ leaderboard: data });
+    return data;
+  },
+
+  submitScore: async ({ name, result }) => {
+    const store = get();
+    const score = store.getFinalScore();
+    const payload = {
+      name: String(name || "Anonymous").slice(0, 18),
+      score,
+      result: result || "unknown", // "gameover" | "win"
+      kills: store.killCount,
+      seconds: Math.round(
+        ((store.runEndMs || Date.now()) - (store.runStartMs || Date.now())) /
+          1000,
+      ),
+      levelReached: store.currentLevelIndex + 1,
+      charId: store.player.charId,
+      ts: Date.now(),
+    };
+
+    set({ submittingScore: true, scoreError: null });
+    const ok = await apiPostScore(payload);
+    set({ submittingScore: false, scoreError: ok ? null : "submit_failed" });
+    if (ok) await get().fetchLeaderboard(10);
+    return ok;
+  },
 
   // ─── Level ─────────────────────────────────────────────────────────────────
   currentLevelIndex: 0,
@@ -167,6 +260,12 @@ export const useGameStore = create((set, get) => ({
         facing: "down",
       },
     });
+
+    // Start run timer when entering the first playable level.
+    // (Keeps existing flow intact; calling it multiple times is harmless.)
+    if (index === 0 && get().runStartMs === 0) {
+      get().startRun();
+    }
   },
 
   updateEnemy: (id, partial) =>
@@ -203,6 +302,10 @@ export const useGameStore = create((set, get) => ({
       enemies: s.enemies.map((e) => (e.id === id ? { ...e, alive: false } : e)),
     }));
 
+    if (target?.type) {
+      get().addKillScore(target.type);
+    }
+
     // Special drops / flags
     if (target?.drops === "golden_crank") {
       get().grantGoldenCrank();
@@ -231,6 +334,8 @@ export const useGameStore = create((set, get) => ({
     set((s) => {
       const hp = s.player.hp - amount;
       if (hp <= 0) {
+        // Freeze timer on death so score is stable.
+        get().endRun();
         return { player: { ...s.player, hp: 0 }, screen: "gameover" };
       }
       return { player: { ...s.player, hp } };
@@ -701,5 +806,13 @@ export const useGameStore = create((set, get) => ({
       npcs: [],
       projectiles: [],
       particles: [],
+
+      runStartMs: 0,
+      runEndMs: 0,
+      killCount: 0,
+      killScore: 0,
+      leaderboard: null,
+      submittingScore: false,
+      scoreError: null,
     }),
 }));

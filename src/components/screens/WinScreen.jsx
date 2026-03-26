@@ -1,11 +1,25 @@
 // Victory Screen
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useGameStore } from "../../store/gameStore.js";
 import { play } from "../../systems/sound.js";
 
 export default function WinScreen() {
   const player = useGameStore((s) => s.player);
   const resetGame = useGameStore((s) => s.resetGame);
+
+  const endRun = useGameStore((s) => s.endRun);
+  const getFinalScore = useGameStore((s) => s.getFinalScore);
+  const submitScore = useGameStore((s) => s.submitScore);
+  const submittingScore = useGameStore((s) => s.submittingScore);
+
+  const [name, setName] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  const score = useMemo(() => getFinalScore(), [getFinalScore]);
+
+  useEffect(() => {
+    endRun();
+  }, [endRun]);
 
   return (
     <div
@@ -89,6 +103,7 @@ export default function WinScreen() {
             ["Gold Earned", player.gold],
             ["Attack Power", player.atk + (player.weapon?.damage ?? 0)],
             ["Weapon", player.weapon?.label ?? "Sword"],
+            ["Score", score],
           ].map(([label, value]) => (
             <React.Fragment key={label}>
               <div style={{ color: "#666", fontSize: 9, textAlign: "right" }}>
@@ -105,6 +120,72 @@ export default function WinScreen() {
               </div>
             </React.Fragment>
           ))}
+        </div>
+      </div>
+
+      <div
+        style={{
+          width: 420,
+          maxWidth: "92vw",
+          background: "rgba(255,255,255,0.03)",
+          border: "1px solid rgba(251,191,36,0.15)",
+          borderRadius: 8,
+          padding: "14px 16px",
+          marginBottom: 24,
+          fontFamily: "KenneyFutureNarrow, monospace",
+        }}
+      >
+        <div style={{ color: "#fbbf24", fontSize: 9, letterSpacing: 2 }}>
+          SUBMIT YOUR SCORE
+        </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Your name"
+            style={{
+              flex: 1,
+              background: "rgba(0,0,0,0.35)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              color: "#ddd",
+              padding: "10px 10px",
+              borderRadius: 6,
+              fontFamily: "KenneyFutureNarrow, monospace",
+              fontSize: 10,
+              letterSpacing: 1,
+              outline: "none",
+            }}
+            maxLength={18}
+          />
+          <button
+            disabled={submittingScore || submitted}
+            onClick={async () => {
+              const ok = await submitScore({
+                name: name.trim() || "Anonymous",
+                result: "win",
+              });
+              if (ok) {
+                setSubmitted(true);
+                play("select");
+              } else {
+                play("click");
+              }
+            }}
+            style={{
+              background: "rgba(251,191,36,0.15)",
+              border: "1px solid rgba(251,191,36,0.7)",
+              color: "#fef08a",
+              fontSize: 10,
+              padding: "10px 14px",
+              borderRadius: 6,
+              cursor: submittingScore || submitted ? "not-allowed" : "pointer",
+              fontFamily: "KenneyFuture, monospace",
+              letterSpacing: 2,
+              opacity: submittingScore || submitted ? 0.6 : 1,
+            }}
+          >
+            {submitted ? "POSTED" : submittingScore ? "SENDING..." : "POST"}
+          </button>
         </div>
       </div>
 
