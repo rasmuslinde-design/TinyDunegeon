@@ -42,7 +42,7 @@ const initialPlayer = {
 
 export const useGameStore = create((set, get) => ({
   // ─── Screens ───────────────────────────────────────────────────────────────
-  screen: "title", // title | charselect | game | gameover | win
+  screen: "intro", // intro | title | charselect | game | gameover | win
   setScreen: (s) => set({ screen: s }),
 
   // ─── Scoring / Leaderboard (HTTP integration) ───────────────────────────

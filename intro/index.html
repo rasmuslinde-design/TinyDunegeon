@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+    <meta charset="UTF-8">
+    <title>GoonTown: Starry Night & Sounds</title>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="ui">VAJUTA [E] ET SISENEDA LOSSI</div>
+    
+    <div id="loading-screen">
+        <div class="spinner"></div>
+        <div style="font-size: 24px; letter-spacing: 5px;">SISENEMINE...</div>
+    </div>
+
+    <a-scene vr-mode-ui="enabled: false" shadow="type: pcfsoft" fog="type: exponential; color: #050510; density: 0.006">
+        
+        <a-assets>
+            <a-asset-item id="castle-m" src="Town House.glb"></a-asset-item>
+            <a-asset-item id="house1-m" src="House_Type1.glb"></a-asset-item>
+            <a-asset-item id="house2-m" src="House_Type2.glb"></a-asset-item>
+            <a-asset-item id="tree-m" src="Big Tree.glb"></a-asset-item>
+
+            <audio id="ambient-sound" src="ambient.mp3" preload="auto"></audio>
+            <audio id="step-sound" src="steps.mp3" preload="auto"></audio>
+        </a-assets>
+
+        <a-entity sound="src: #ambient-sound; autoplay: true; loop: true; volume: 2"></a-entity>
+
+        <a-sky color="#050510"></a-sky>
+        <a-light type="ambient" color="#fff" intensity="1.5"></a-light>
+        <a-light type="directional" position="2 10 5" intensity="0.8"></a-light>
+
+        <a-entity position="20 150 -150">
+            <a-sphere radius="15" material="color: #fff; emissive: #ffffaa; emissiveIntensity: 2; shader: flat"></a-sphere>
+            <a-light type="point" color="#ffffaa" intensity="2" distance="300"></a-light>
+        </a-entity>
+
+        <a-entity id="star-field"></a-entity>
+
+        <a-entity id="camera-rig" position="0 1.6 40">
+            <a-entity id="main-cam" camera look-controls="pointerLockEnabled: true" wasd-controls="acceleration: 120">
+                <a-cursor color="#00ffff" scale="0.5 0.5 0.5"></a-cursor>
+                <a-entity id="player-steps" sound="src: #step-sound; loop: true; volume: 0.8"></a-entity>
+            </a-entity>
+        </a-entity>
+
+        <a-plane rotation="-90 0 0" width="1000" height="1000" color="#1a1a1a"></a-plane>
+        <a-box position="0 0.01 30" width="10" depth="200" color="#222"></a-box>
+
+        <a-entity id="world-objects"></a-entity>
+
+        <a-entity id="castle" gltf-model="#castle-m" position="0 0 -60" scale="12 12 12"></a-entity>
+
+    </a-scene>
+
+    <script src="script.js"></script>
+</body>
+</html>

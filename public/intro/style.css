@@ -1,0 +1,67 @@
+/* 1. SUNNI BRAUSERI TAUST MUSTAKS */
+html, body { 
+    margin: 0; 
+    padding: 0;
+    overflow: hidden; 
+    background-color: #000 !important; /* !important garanteerib musta tausta */
+    font-family: sans-serif; 
+}
+
+/* 2. INTERAKTSIOONI UI */
+#ui { 
+    position: fixed; bottom: 10%; left: 50%; transform: translateX(-50%); 
+    color: #ffffff; background: rgba(0,0,0,0.8); padding: 15px 30px; 
+    border: 2px solid #ffffff; display: none; z-index: 100; border-radius: 10px;
+    font-weight: bold; letter-spacing: 1px;
+}
+
+/* 3. MUST LAADIMISEKRAAN (PARANDATUD) */
+#loading-screen {
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100vw; 
+    height: 100vh;
+    background: #000000; /* Puhas must */
+    color: white; 
+    display: flex; 
+    flex-direction: column;
+    justify-content: center; 
+    align-items: center; 
+    
+    /* Tõstame z-indexi väga kõrgeks, et vältida läbikuma */
+    z-index: 99999; 
+    
+    opacity: 0; 
+    pointer-events: none; 
+    
+    /* Lühendasin sujuvat üleminekut 0.8s peale, et sähvatusi oleks vähem */
+    transition: opacity 0.8s ease-in-out; 
+}
+
+/* Aktiivne olek */
+#loading-screen.active { 
+    opacity: 1; 
+    pointer-events: all; 
+}
+
+/* 4. ANIMATSIOONID */
+.spinner {
+    width: 50px; height: 50px; 
+    border: 5px solid #1a1a1a;
+    border-top: 5px solid #ffffff; 
+    border-radius: 50%;
+    animation: spin 1s linear infinite; 
+    margin-bottom: 20px;
+}
+
+@keyframes spin { 
+    0% { transform: rotate(0deg); } 
+    100% { transform: rotate(360deg); } 
+}
+
+/* 5. A-FRAME LÕUENDI FIX */
+/* See takistab A-Frame'il sähvimast, kui loading screen on ees */
+canvas.a-canvas {
+    background-color: #000 !important;
+}
