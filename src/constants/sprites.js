@@ -152,6 +152,16 @@ export const ENEMY_SPRITES = {
     speed: 700,
     behavior: "ranged",
   },
+  // Level 2 Room 2 boss: uses tile 121 visual but custom hybrid behavior.
+  ghost_boss: {
+    ...rc(121),
+    label: "Ghost",
+    hp: 120,
+    dmg: 11,
+    xp: 90,
+    speed: 600,
+    behavior: "hybrid_boss",
+  },
   troll: {
     ...rc(122),
     label: "Troll",

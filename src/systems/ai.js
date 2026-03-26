@@ -209,6 +209,39 @@ export function tickAI(now) {
         break;
       }
 
+      case "hybrid_boss": {
+        // Melee when close (path toward player); ranged when far.
+        if (d <= 2) {
+          newPos = stepToward(levelData.map, enemy, player, enemies, levelData);
+        } else {
+          // Keep some pressure but don't hug the player.
+          if (d > 4)
+            newPos = stepToward(
+              levelData.map,
+              enemy,
+              player,
+              enemies,
+              levelData,
+            );
+
+          // Ranged volleys when farther away.
+          if (d >= 4 && d <= 12 && Math.random() < 0.65) {
+            spawnProjectile({
+              x: enemy.x + 0.5,
+              y: enemy.y + 0.5,
+              dx: sign(player.x - enemy.x) || (Math.random() > 0.5 ? 1 : -1),
+              dy: sign(player.y - enemy.y) || 0,
+              color: "#93c5fd",
+              speed: 4,
+              fromEnemy: true,
+              dmg: base.dmg,
+              life: 34,
+            });
+          }
+        }
+        break;
+      }
+
       default:
         newPos = randomStep(levelData.map, enemy, enemies, levelData, player);
         break;

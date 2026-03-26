@@ -445,6 +445,35 @@ function buildL2() {
   const MIMIC_CHEST = 92;
   setTile(22, 16, MIMIC_CHEST);
 
+  // ── ROOM 2: Gravestone push puzzle + boss gate ──────────────────────────
+  // Room 2 bounds: r:8-20, c:26-36
+  // Tile 65 = gravestone (pushable). Tile 60 = marker (goal positions).
+  const GRAVESTONE = 65;
+  const MARKER = 60;
+
+  // Markers (targets)
+  setTile(12, 30, MARKER);
+  setTile(12, 32, MARKER);
+  setTile(16, 31, MARKER);
+
+  // Three gravestones (start positions)
+  setTile(10, 29, GRAVESTONE);
+  setTile(10, 33, GRAVESTONE);
+  setTile(18, 31, GRAVESTONE);
+
+  // Room 2 right-side exit (locked until ghost boss defeated).
+  // Exit is 2 tiles tall: top = door, bottom = wall.
+  // Door coordinate chosen at Room 2 east edge (col 36).
+  setTile(14, 36, 45); // CLOSED door
+  setTile(15, 36, W2); // wall below
+  // Ensure there is floor just inside the room.
+  setFloor(14, 35);
+  setFloor(15, 35);
+  // Create corridor to the right (2-high) starting outside the door.
+  corridorH(14, 36, 44);
+  // But keep the bottom half under the door as a wall.
+  setTile(15, 36, W2);
+
   // Ensure *all* walkable areas are using desert floor distribution.
   // Convert any legacy stone floor tiles (0/12/24) to desert floors while
   // leaving walls/doors/objects intact.

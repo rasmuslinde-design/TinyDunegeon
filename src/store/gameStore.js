@@ -63,6 +63,52 @@ export const useGameStore = create((set, get) => ({
     if (nx < 0 || ny < 0 || nx >= maxCols || ny >= maxRows) return;
 
     const tile = levelData.map[ny]?.[nx] ?? 14;
+
+    // ─── Level 2: Room 2 gravestone push puzzle ───────────────────────────
+    // Tile 65 = gravestone (pushable). Tile 60 = marker (visual only; not solid).
+    // Rule: when the player tries to walk into a gravestone, it slides one tile
+    // in the same direction if the destination tile is not solid and not occupied.
+    // After any push, check markers; if all 3 are covered, spawn the ghost boss.
+    if (
+      get().currentLevelIndex === 1 &&
+      tile === 65 &&
+      (dx !== 0 || dy !== 0)
+    ) {
+      const pushX = nx + dx;
+      const pushY = ny + dy;
+      const maxCols = levelData?.cols ?? 20;
+      const maxRows = levelData?.rows ?? 15;
+      if (pushX < 0 || pushY < 0 || pushX >= maxCols || pushY >= maxRows) {
+        return;
+      }
+
+      const destTile = levelData.map[pushY]?.[pushX] ?? 14;
+      const occupiedByEnemy = enemies.some(
+        (e) => e.alive && e.x === pushX && e.y === pushY,
+      );
+      const occupiedByPlayer = player.x === pushX && player.y === pushY;
+
+      // Can only push onto a non-solid destination and not onto entities.
+      // Markers are just floor-underlays visually, so they must be passable.
+      const destSolid = SOLID_TILE_SET.has(destTile);
+      if (destSolid || occupiedByEnemy || occupiedByPlayer) return;
+
+      // Apply push (we don't try to restore "marker" visual underneath; markers
+      // are represented by the quest state and are checked by coordinates).
+      const newMap = levelData.map.map((row, r) =>
+        row.map((cell, c) => {
+          if (r === ny && c === nx) return 48; // revert to sand floor
+          if (r === pushY && c === pushX) return 65;
+          return cell;
+        }),
+      );
+
+      set((s) => ({ levelData: { ...s.levelData, map: newMap } }));
+
+      // Evaluate puzzle completion + spawn boss if needed.
+      get().checkRoom2GravestonePuzzle();
+      return;
+    }
     // Open door halves and quest secret wall are passable
     if (OPEN_DOOR_TILES.has(tile)) {
       // always passable
@@ -163,6 +209,21 @@ export const useGameStore = create((set, get) => ({
     }
     if (target?.isMimic) {
       set((s) => ({ quest: { ...s.quest, mimicDefeated: true } }));
+    }
+
+    if (target?.isGhostBoss) {
+      set((s) => ({ quest: { ...s.quest, room2GhostDefeated: true } }));
+      const { levelData, currentLevelIndex } = get();
+      if (levelData && currentLevelIndex === 1) {
+        // Open the single door (top tile) on Room 2's right exit.
+        const newMap = levelData.map.map((row, r) =>
+          row.map((cell, c) => {
+            if (r === 14 && c === 36) return 33;
+            return cell;
+          }),
+        );
+        set((s) => ({ levelData: { ...s.levelData, map: newMap } }));
+      }
     }
   },
 
@@ -276,6 +337,19 @@ export const useGameStore = create((set, get) => ({
     goldenCrankFound: false,
     desertMechanismActivated: false,
     mimicDefeated: false,
+
+    // Level 2: Room 2 gravestone push puzzle → ghost boss → unlock right door
+    room2Markers: [
+      { x: 30, y: 12 },
+      { x: 32, y: 12 },
+      { x: 31, y: 16 },
+    ],
+    room2BossSpawn: { x: 31, y: 14 },
+    room2GhostSpawned: false,
+    room2GhostDefeated: false,
+
+    // Snapshot of mimic boss HP so ghost boss can match it.
+    mimicBossHp: 120,
   },
   setQuest: (partial) => set((s) => ({ quest: { ...s.quest, ...partial } })),
 
@@ -385,14 +459,15 @@ export const useGameStore = create((set, get) => ({
     // Spawn a tough mimic enemy that attacks immediately.
     // Using an existing enemy sprite type; bump HP a lot.
     const base = getEnemyBase("slime");
+    const mimicHp = Math.max(120, base.hp * 4);
     const mimic = {
       type: "slime",
       x,
       y,
       id: `mimic_${Date.now()}`,
       alive: true,
-      hp: Math.max(120, base.hp * 4),
-      maxHp: Math.max(120, base.hp * 4),
+      hp: mimicHp,
+      maxHp: mimicHp,
       facing: "down",
       aiTimer: 0,
       path: [],
@@ -401,7 +476,57 @@ export const useGameStore = create((set, get) => ({
 
     set((s) => ({
       levelData: { ...s.levelData, map: newMap },
+      quest: { ...s.quest, mimicBossHp: mimicHp },
       enemies: [...s.enemies, mimic],
+    }));
+    return true;
+  },
+
+  // ─── Level 2: Room 2 gravestone puzzle / ghost boss ──────────────────────
+  checkRoom2GravestonePuzzle: () => {
+    const { levelData, currentLevelIndex, quest } = get();
+    if (!levelData || currentLevelIndex !== 1) return false;
+    if (quest.room2GhostSpawned || quest.room2GhostDefeated) return false;
+
+    const markers = quest.room2Markers ?? [];
+    if (!Array.isArray(markers) || markers.length !== 3) return false;
+
+    // A marker is covered if a gravestone (65) sits on its coordinate.
+    const covered = markers.filter(
+      (m) => levelData.map[m.y]?.[m.x] === 65,
+    ).length;
+    if (covered < 3) return false;
+
+    get().spawnRoom2GhostBoss();
+    return true;
+  },
+
+  spawnRoom2GhostBoss: () => {
+    const { levelData, currentLevelIndex, quest, enemies } = get();
+    if (!levelData || currentLevelIndex !== 1) return false;
+    if (quest.room2GhostSpawned || quest.room2GhostDefeated) return false;
+
+    // Match mimic HP.
+    const mimicHp = quest.mimicBossHp ?? 120;
+
+    const spec = quest.room2BossSpawn ?? { x: 31, y: 14 };
+    const newEnemy = {
+      type: "ghost_boss",
+      x: spec.x,
+      y: spec.y,
+      id: `ghost_${Date.now()}`,
+      alive: true,
+      hp: mimicHp,
+      maxHp: mimicHp,
+      facing: "down",
+      aiTimer: 0,
+      path: [],
+      isGhostBoss: true,
+    };
+
+    set((s) => ({
+      quest: { ...s.quest, room2GhostSpawned: true },
+      enemies: [...s.enemies, newEnemy],
     }));
     return true;
   },
